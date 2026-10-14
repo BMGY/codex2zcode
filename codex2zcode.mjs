@@ -40,7 +40,7 @@ function usage(exitCode = 0) {
   --codex-dir <dir>   Codex sessions 目录(默认 ~/.codex/sessions)
   --db <path>         ZCode CLI 会话库(默认 ~/.zcode/cli/db/db.sqlite)
   --tasks <path>      ZCode 任务索引(默认 ~/.zcode/v2/tasks-index.sqlite)
-  --max-tool-output N 单条工具输出保留字符数,0 为不截断(默认 32768)
+  --max-tool-output N 单条工具输出保留字符数,0 为不截断(默认 8192,适配 UI 投影快照的 ~2MB 字节预算)
   --manifest <path>   增量导入清单(默认 ~/.codex2zcode-manifest.json)
   --force             忽略 manifest,强制重导
   --dry-run           只解析映射,不写入`);
@@ -48,7 +48,7 @@ function usage(exitCode = 0) {
 }
 
 function parseArgs(argv) {
-  const args = { _: [], codexDir: null, cliDb: DEFAULTS.cliDb, taskDb: DEFAULTS.taskDb, dryRun: false, limit: Infinity, maxToolOutput: 32768, manifest: join(homedir(), ".codex2zcode-manifest.json"), force: false };
+  const args = { _: [], codexDir: null, cliDb: DEFAULTS.cliDb, taskDb: DEFAULTS.taskDb, dryRun: false, limit: Infinity, maxToolOutput: 8192, manifest: join(homedir(), ".codex2zcode-manifest.json"), force: false };
   for (let i = 0; i < argv.length; i++) {
     const item = argv[i];
     if (i === 0 && ["scan", "import", "rollback"].includes(item)) { args._.push(item); continue; }
@@ -147,7 +147,7 @@ function selectFiles(args) {
   throw new Error("需要 --session / --project / --all 之一");
 }
 
-const TOOL_VERSION = "1.7.0";
+const TOOL_VERSION = "1.7.1";
 
 function relOf(file) {
   return file.includes("/.codex/") ? file.split("/.codex/")[1] : file;
