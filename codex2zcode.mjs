@@ -16,10 +16,15 @@ import { mapRolloutFile } from "./lib/mapper.mjs";
 import { backupDb, openDb, verifySchema, importSession, sessionExists } from "./lib/zcode-db.mjs";
 
 const DEFAULTS = {
-  codexDir: join(homedir(), ".codex", "sessions"),
+  // 归档目录在前:同一会话 id 同时存在时,后处理的 sessions/ 活跃版本覆盖归档版。
+  codexDirs: [join(homedir(), ".codex", "archived_sessions"), join(homedir(), ".codex", "sessions")],
   cliDb: join(homedir(), ".zcode", "cli", "db", "db.sqlite"),
   taskDb: join(homedir(), ".zcode", "v2", "tasks-index.sqlite"),
 };
+
+function sourceDirs(args) {
+  return args.codexDir ? [args.codexDir] : DEFAULTS.codexDirs;
+}
 
 function usage(exitCode = 0) {
   console.log(`codex2zcode — Codex 会话迁移进 ZCode
@@ -42,7 +47,7 @@ function usage(exitCode = 0) {
 }
 
 function parseArgs(argv) {
-  const args = { _: [], codexDir: DEFAULTS.codexDir, cliDb: DEFAULTS.cliDb, taskDb: DEFAULTS.taskDb, dryRun: false, limit: Infinity, maxToolOutput: 32768, manifest: join(homedir(), ".codex2zcode-manifest.json"), force: false };
+  const args = { _: [], codexDir: null, cliDb: DEFAULTS.cliDb, taskDb: DEFAULTS.taskDb, dryRun: false, limit: Infinity, maxToolOutput: 32768, manifest: join(homedir(), ".codex2zcode-manifest.json"), force: false };
   for (let i = 0; i < argv.length; i++) {
     const item = argv[i];
     if (i === 0 && ["scan", "import", "rollback"].includes(item)) { args._.push(item); continue; }
@@ -67,7 +72,7 @@ function parseArgs(argv) {
   return args;
 }
 
-function listRolloutFiles(codexDir) {
+function listRolloutFiles(codexDirs) {
   const files = [];
   const walk = (dir) => {
     for (const name of readdirSync(dir)) {
@@ -77,7 +82,7 @@ function listRolloutFiles(codexDir) {
       else if (name.startsWith("rollout-") && name.endsWith(".jsonl")) files.push(full);
     }
   };
-  walk(codexDir);
+  for (const dir of codexDirs) walk(dir);
   return files.sort();
 }
 
@@ -94,7 +99,7 @@ function summarize(parsed) {
 }
 
 function cmdScan(args) {
-  const files = listRolloutFiles(args.codexDir);
+  const files = listRolloutFiles(sourceDirs(args));
   const byProject = new Map();
   let noMeta = 0;
   for (const file of files) {
@@ -119,7 +124,7 @@ function cmdScan(args) {
 }
 
 function selectFiles(args) {
-  const files = listRolloutFiles(args.codexDir);
+  const files = listRolloutFiles(sourceDirs(args));
   if (args.session) {
     const hit = files.filter((f) => f.includes(args.session));
     if (hit.length === 0) throw new Error(`没有匹配 --session ${args.session} 的会话文件`);
@@ -166,7 +171,7 @@ function cmdImport(args) {
   const results = [];
 
   for (const file of files) {
-    const rel = file.slice(args.codexDir.length + 1);
+    const rel = file.includes("/.codex/") ? file.split("/.codex/")[1] : file;
     try {
       const st = statSync(file);
       const m = manifest[file];
