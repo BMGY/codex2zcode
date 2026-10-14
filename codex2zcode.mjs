@@ -11,7 +11,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { readdirSync, statSync, copyFileSync, existsSync, writeFileSync, readFileSync } from "node:fs";
-import { parseRollout, mergeRollouts, uuidFromFilename } from "./lib/rollout.mjs";
+import { parseRollout, mergeRollouts, uuidFromFilename, loadCodexTitles } from "./lib/rollout.mjs";
 import { mapRolloutFile } from "./lib/mapper.mjs";
 import { backupDb, openDb, verifySchema, importSession, sessionExists } from "./lib/zcode-db.mjs";
 
@@ -193,6 +193,7 @@ function cmdImport(args) {
 
   let cliDb = null;
   let taskDb = null;
+  let titleMap = loadCodexTitles(join(homedir(), ".codex", "session_index.jsonl"));
   let modelSelection = null;
   let defaultTools = {};
   const results = [];
@@ -214,7 +215,7 @@ function cmdImport(args) {
         continue;
       }
       const merged = parsedList.length === 1 ? parsedList[0] : mergeRollouts(parsedList);
-      const sessions = mapRolloutFile(merged, { maxToolOutput: args.maxToolOutput, defaultTools, idSuffix: args.sessionSuffix });
+      const sessions = mapRolloutFile(merged, { maxToolOutput: args.maxToolOutput, defaultTools, idSuffix: args.sessionSuffix, titleMap });
       for (const mapped of sessions) {
         const summary = {
           files: rels,

@@ -10,6 +10,7 @@
 
 - **源**:默认 `~/.codex/sessions/`(活跃会话)下的 rollout JSONL;归档目录不默认迁移,需要时显式 `--codex-dir ~/.codex/archived_sessions`
 - **目标**:`~/.zcode/cli/db/db.sqlite`(session/message/part 三表)与 `~/.zcode/v2/tasks-index.sqlite`(Desktop 任务索引)
+- **标题**:优先使用 Codex 原生会话名(`~/codex/session_index.jsonl` 的 thread_name,标记为 custom 防覆盖),无索引时回退首条用户消息启发式
 - **映射**:user/assistant 消息 → text part,`reasoning` → reasoning part,`function_call`(+`_output`)、`custom_tool_call`、`web_search_call` → tool part,每轮补 step-start/step-finish
 - **压缩会话:原生压缩语义**(逆向自 ZCode 手动压缩的库内契约):压缩前历史原样保留,每个 Codex 压缩点写成 ZCode 原生三元组——宿主 assistant 时间线消息 + `compact_summary` 摘要消息(正文为 Codex 摘要)+ `compaction` part(`replace:true`/boundaryId/tail_start_id)。效果:**UI 完整时间线可追溯,续聊时读取器只送"最后摘要 + 尾部"**,与原生压缩会话行为一致,无需依赖首次续聊的自动压缩
 - **契约对齐**:写入形状与 ZCode 官方 `restore-legacy-sessions` 插件一致(provider 固定 `glm`、正文进 part 表、tool 时间放 `state.time`、user 消息带空 `model:{}`),确保任务列表可见、详情页正常渲染
