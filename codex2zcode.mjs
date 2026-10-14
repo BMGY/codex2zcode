@@ -12,7 +12,7 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { readdirSync, statSync, copyFileSync, existsSync, writeFileSync } from "node:fs";
 import { parseRollout } from "./lib/rollout.mjs";
-import { mapSession } from "./lib/mapper.mjs";
+import { mapRolloutFile } from "./lib/mapper.mjs";
 import { backupDb, openDb, verifySchema, importSession, sessionExists } from "./lib/zcode-db.mjs";
 
 const DEFAULTS = {
@@ -150,34 +150,35 @@ function cmdImport(args) {
     const rel = file.slice(args.codexDir.length + 1);
     try {
       const parsed = parseRollout(file);
-      const mapped = mapSession(parsed, { maxToolOutput: args.maxToolOutput });
-      const summary = {
-        file: rel,
-        codexId: mapped.codexId,
-        cwd: mapped.cwd,
-        title: mapped.sessionRow.title,
-        messages: mapped.messages.length,
-        parts: mapped.messages.reduce((a, m) => a + m.parts.length, 0),
-      };
-      if (args.dryRun) {
-        results.push({ ...summary, status: "dry-run" });
-        console.log(`[dry-run] ${rel} → ${mapped.messages.length} 条消息,标题:「${summary.title}」`);
-        continue;
+      const sessions = mapRolloutFile(parsed, { maxToolOutput: args.maxToolOutput });
+      for (const mapped of sessions) {
+        const tag = mapped.archive ? "[归档]" : "";
+        const summary = {
+          file: rel,
+          archive: mapped.archive,
+          codexId: mapped.codexId,
+          cwd: mapped.cwd,
+          title: mapped.sessionRow.title,
+          messages: mapped.messages.length,
+          parts: mapped.messages.reduce((a, m) => a + m.parts.length, 0),
+        };
+        if (args.dryRun) {
+          results.push({ ...summary, status: "dry-run" });
+          console.log(`[dry-run]${tag} ${rel} → ${summary.messages} 条消息「${summary.title}」`);
+          continue;
+        }
+        if (!cliDb) {
+          cliDb = openDb(args.cliDb);
+          taskDb = openDb(args.taskDb);
+          verifySchema(cliDb, taskDb);
+          console.log(`备份: ${backupDb(args.cliDb)}`);
+          console.log(`备份: ${backupDb(args.taskDb)}`);
+          backedUp = true;
+        }
+        const written = importSession(cliDb, taskDb, mapped);
+        results.push({ ...summary, ...written, status: "ok" });
+        console.log(`[ok]${tag} ${rel} → ${written.messageCount} 消息 / ${written.partCount} parts「${summary.title}」`);
       }
-      if (!cliDb) {
-        cliDb = openDb(args.cliDb);
-        taskDb = openDb(args.taskDb);
-        verifySchema(cliDb, taskDb);
-        console.log(`备份: ${backupDb(args.cliDb)}`);
-        console.log(`备份: ${backupDb(args.taskDb)}`);
-        backedUp = true;
-      }
-      if (sessionExists(cliDb, mapped.sessionId)) {
-        // 幂等重导入:清旧消息重写,视为更新
-      }
-      const written = importSession(cliDb, taskDb, mapped);
-      results.push({ ...summary, ...written, status: "ok" });
-      console.log(`[ok] ${rel} → ${written.messageCount} 消息 / ${written.partCount} parts「${summary.title}」`);
     } catch (error) {
       results.push({ file: rel, status: "failed", error: String(error?.message || error) });
       console.error(`[fail] ${rel}: ${error?.message || error}`);
@@ -192,7 +193,7 @@ function cmdImport(args) {
   if (!args.dryRun) {
     writeFileSync(reportPath, JSON.stringify({ args: { ...args, _: undefined }, results }, null, 2));
   }
-  console.log(`\n完成:成功 ${ok} / ${files.length}${failed.length ? `,失败 ${failed.length}` : ""}${!args.dryRun ? `,报告: ${reportPath}` : ""}`);
+  console.log(`\n完成:成功 ${ok} 个会话 / ${files.length} 个文件${failed.length ? `,失败 ${failed.length}` : ""}${!args.dryRun ? `,报告: ${reportPath}` : ""}`);
   if (failed.length) process.exitCode = 2;
 }
 
