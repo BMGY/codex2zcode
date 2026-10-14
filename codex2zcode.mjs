@@ -63,6 +63,7 @@ function parseArgs(argv) {
     else if (item === "--limit") args.limit = Number(next);
     else if (item === "--max-tool-output") args.maxToolOutput = Number(next);
     else if (item === "--manifest") args.manifest = next;
+    else if (item === "--session-suffix") args.sessionSuffix = next;
     else if (item === "--codex-dir") args.codexDir = next;
     else if (item === "--db") args.cliDb = next;
     else if (item === "--tasks") args.taskDb = next;
@@ -213,7 +214,7 @@ function cmdImport(args) {
         continue;
       }
       const merged = parsedList.length === 1 ? parsedList[0] : mergeRollouts(parsedList);
-      const sessions = mapRolloutFile(merged, { maxToolOutput: args.maxToolOutput, defaultTools });
+      const sessions = mapRolloutFile(merged, { maxToolOutput: args.maxToolOutput, defaultTools, idSuffix: args.sessionSuffix });
       for (const mapped of sessions) {
         const summary = {
           files: rels,
