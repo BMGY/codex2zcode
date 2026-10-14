@@ -43,7 +43,7 @@ node codex2zcode.mjs import --all                        # 4. 全量导入
 | `import --all [--limit N]` | 全量导入(可限量) |
 | `rollback --backup <备份> --to <库路径>` | 从备份还原数据库 |
 
-通用选项:`--dry-run`(只解析映射不写入)、`--codex-dir`、`--db`、`--tasks`。
+通用选项:`--dry-run`(只解析映射不写入)、`--max-tool-output N`(单条工具输出保留字符数,默认 32768,`0` 为不截断)、`--codex-dir`、`--db`、`--tasks`。
 
 每次导入生成 `codex2zcode-report-*.json`,记录每个会话的成功/失败与原因。
 
@@ -51,7 +51,8 @@ node codex2zcode.mjs import --all                        # 4. 全量导入
 
 - **Codex 侧只读**:工具不写入 `~/.codex` 的任何文件
 - **自动备份**:每次导入前用 `sqlite3 .backup`(WAL 安全)备份两个目标库
-- **幂等**:会话 id = `sess_<Codex uuid>`;重复导入先清旧消息再重写,session/task 走 upsert 且保留用户自定义标题
+- **幂等(合并式)**:会话 id = `sess_<Codex uuid>`、消息 id = `msg_cx_<uuid>_<序号>` 均为确定性 id;重导入只替换本工具先前导入的消息,**保留你在 ZCode 里续聊产生的原生消息**(确定性 id 保证 parentID 引用链不断);session/task 走 upsert 且保留用户自定义标题
+- **工具输出截断**:巨型工具输出(截图 base64、全文件转储)默认截断保留前 32K 字符并标注原始大小——否则续聊时重放输入会撑爆上下文窗口,模型端报 `model_output_limit_exceeded`(界面提示 "The model's response exceeded the output token maximum");不需要截断时传 `--max-tool-output 0`
 - **schema 校验**:写入前核对两库表结构,ZCode 升级导致漂移时拒绝写入
 - **运行共存**:WAL + busy_timeout + 短事务 + 忙锁重试,ZCode 运行中导入也安全(仍建议导入后重启)
 - **被 resume 过的会话**:多个 rollout 文件属同一会话 id 时按"末次文件覆盖"(Codex resume 的新文件包含完整历史)

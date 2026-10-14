@@ -34,12 +34,13 @@ function usage(exitCode = 0) {
   --codex-dir <dir>   Codex sessions 目录(默认 ~/.codex/sessions)
   --db <path>         ZCode CLI 会话库(默认 ~/.zcode/cli/db/db.sqlite)
   --tasks <path>      ZCode 任务索引(默认 ~/.zcode/v2/tasks-index.sqlite)
+  --max-tool-output N 单条工具输出保留字符数,0 为不截断(默认 32768)
   --dry-run           只解析映射,不写入`);
   process.exit(exitCode);
 }
 
 function parseArgs(argv) {
-  const args = { _: [], codexDir: DEFAULTS.codexDir, cliDb: DEFAULTS.cliDb, taskDb: DEFAULTS.taskDb, dryRun: false, limit: Infinity };
+  const args = { _: [], codexDir: DEFAULTS.codexDir, cliDb: DEFAULTS.cliDb, taskDb: DEFAULTS.taskDb, dryRun: false, limit: Infinity, maxToolOutput: 32768 };
   for (let i = 0; i < argv.length; i++) {
     const item = argv[i];
     if (i === 0 && ["scan", "import", "rollback"].includes(item)) { args._.push(item); continue; }
@@ -51,6 +52,7 @@ function parseArgs(argv) {
     if (item === "--session") args.session = next;
     else if (item === "--project") args.project = next;
     else if (item === "--limit") args.limit = Number(next);
+    else if (item === "--max-tool-output") args.maxToolOutput = Number(next);
     else if (item === "--codex-dir") args.codexDir = next;
     else if (item === "--db") args.cliDb = next;
     else if (item === "--tasks") args.taskDb = next;
@@ -148,7 +150,7 @@ function cmdImport(args) {
     const rel = file.slice(args.codexDir.length + 1);
     try {
       const parsed = parseRollout(file);
-      const mapped = mapSession(parsed);
+      const mapped = mapSession(parsed, { maxToolOutput: args.maxToolOutput });
       const summary = {
         file: rel,
         codexId: mapped.codexId,
