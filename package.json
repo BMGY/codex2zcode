@@ -1,6 +1,6 @@
 {
   "name": "codex2zcode",
-  "version": "1.5.1",
+  "version": "1.5.2",
   "description": "Migrate OpenAI Codex CLI/Desktop sessions (rollout JSONL) into ZCode native sessions (CLI session DB + desktop task index).",
   "type": "module",
   "bin": {

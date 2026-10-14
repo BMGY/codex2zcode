@@ -16,8 +16,9 @@ import { mapRolloutFile } from "./lib/mapper.mjs";
 import { backupDb, openDb, verifySchema, importSession, sessionExists } from "./lib/zcode-db.mjs";
 
 const DEFAULTS = {
-  // 归档目录在前:同一会话 id 同时存在时,后处理的 sessions/ 活跃版本覆盖归档版。
-  codexDirs: [join(homedir(), ".codex", "archived_sessions"), join(homedir(), ".codex", "sessions")],
+  // 默认只扫活跃会话;归档目录(~/.codex/archived_sessions)需要时显式指定:
+  //   node codex2zcode.mjs import --all --codex-dir ~/.codex/archived_sessions
+  codexDirs: [join(homedir(), ".codex", "sessions")],
   cliDb: join(homedir(), ".zcode", "cli", "db", "db.sqlite"),
   taskDb: join(homedir(), ".zcode", "v2", "tasks-index.sqlite"),
 };
