@@ -147,7 +147,7 @@ function selectFiles(args) {
   throw new Error("需要 --session / --project / --all 之一");
 }
 
-const TOOL_VERSION = "1.6.0";
+const TOOL_VERSION = "1.6.1";
 
 function relOf(file) {
   return file.includes("/.codex/") ? file.split("/.codex/")[1] : file;
