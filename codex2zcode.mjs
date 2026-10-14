@@ -11,7 +11,7 @@
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { readdirSync, statSync, copyFileSync, existsSync, writeFileSync, readFileSync } from "node:fs";
-import { parseRollout } from "./lib/rollout.mjs";
+import { parseRollout, mergeRollouts, uuidFromFilename } from "./lib/rollout.mjs";
 import { mapRolloutFile } from "./lib/mapper.mjs";
 import { backupDb, openDb, verifySchema, importSession, sessionExists } from "./lib/zcode-db.mjs";
 
@@ -147,13 +147,38 @@ function selectFiles(args) {
   throw new Error("需要 --session / --project / --all 之一");
 }
 
-const TOOL_VERSION = "1.5.0";
+const TOOL_VERSION = "1.6.0";
+
+function relOf(file) {
+  return file.includes("/.codex/") ? file.split("/.codex/")[1] : file;
+}
+
+// 按会话 id 分组:resume 会产生多份 rollout 文件,必须合并处理(而非末次覆盖)。
+function groupSessions(files) {
+  const groups = new Map();
+  for (const f of files) {
+    let parsed;
+    try {
+      parsed = parseRollout(f);
+    } catch {
+      continue;
+    }
+    const id = parsed.meta?.id || uuidFromFilename(f);
+    if (!id) continue;
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push(parsed);
+  }
+  for (const g of groups.values()) g.sort((a, b) => a.firstTs - b.firstTs);
+  return groups;
+}
 
 function cmdImport(args) {
   const files = selectFiles(args);
-  console.log(`选中 ${files.length} 个会话${args.dryRun ? "(dry-run)" : ""}\n`);
+  const groups = groupSessions(files);
+  console.log(`选中 ${files.length} 个文件 / ${groups.size} 个会话${args.dryRun ? "(dry-run)" : ""}\n`);
 
   // 增量清单:mtime+size+档位+工具版本一致则跳过(源文件是追加式,足够可靠)。
+  // 会话组内任一文件变化即整组重导。
   let manifest = {};
   if (!args.dryRun) {
     try {
@@ -162,7 +187,7 @@ function cmdImport(args) {
       manifest = {};
     }
   }
-  let skipped = 0;
+  let skippedFiles = 0;
   let dirty = false;
 
   let cliDb = null;
@@ -171,24 +196,27 @@ function cmdImport(args) {
   let defaultTools = {};
   const results = [];
 
-  for (const file of files) {
-    const rel = file.includes("/.codex/") ? file.split("/.codex/")[1] : file;
+  for (const [, parsedList] of groups) {
+    const rels = parsedList.map((p) => relOf(p.filePath));
+    const rel = rels.length > 1 ? `${rels[0]}(等 ${rels.length} 份文件)` : rels[0];
     try {
-      const st = statSync(file);
-      const m = manifest[file];
-      if (
-        !args.force && m && m.mtimeMs === st.mtimeMs && m.size === st.size &&
-        m.maxToolOutput === args.maxToolOutput && m.toolVersion === TOOL_VERSION
-      ) {
-        skipped++;
+      const allCached = parsedList.every((p) => {
+        const st = statSync(p.filePath);
+        const m = manifest[p.filePath];
+        return (
+          !args.force && m && m.mtimeMs === st.mtimeMs && m.size === st.size &&
+          m.maxToolOutput === args.maxToolOutput && m.toolVersion === TOOL_VERSION
+        );
+      });
+      if (allCached) {
+        skippedFiles += parsedList.length;
         continue;
       }
-      const parsed = parseRollout(file);
-      const sessions = mapRolloutFile(parsed, { maxToolOutput: args.maxToolOutput, defaultTools });
+      const merged = parsedList.length === 1 ? parsedList[0] : mergeRollouts(parsedList);
+      const sessions = mapRolloutFile(merged, { maxToolOutput: args.maxToolOutput, defaultTools });
       for (const mapped of sessions) {
         const summary = {
-          file: rel,
-          archive: mapped.archive,
+          files: rels,
           codexId: mapped.codexId,
           cwd: mapped.cwd,
           title: mapped.sessionRow.title,
@@ -221,11 +249,14 @@ function cmdImport(args) {
         console.log(`[ok] ${rel} → ${written.messageCount} 消息 / ${written.partCount} parts「${summary.title}」`);
       }
       if (!args.dryRun) {
-        manifest[file] = { mtimeMs: st.mtimeMs, size: st.size, maxToolOutput: args.maxToolOutput, toolVersion: TOOL_VERSION, at: Date.now() };
+        for (const p of parsedList) {
+          const st = statSync(p.filePath);
+          manifest[p.filePath] = { mtimeMs: st.mtimeMs, size: st.size, maxToolOutput: args.maxToolOutput, toolVersion: TOOL_VERSION, at: Date.now() };
+        }
         dirty = true;
       }
     } catch (error) {
-      results.push({ file: rel, status: "failed", error: String(error?.message || error) });
+      results.push({ files: rels, status: "failed", error: String(error?.message || error) });
       console.error(`[fail] ${rel}: ${error?.message || error}`);
     }
   }
@@ -236,10 +267,10 @@ function cmdImport(args) {
   const ok = results.filter((r) => r.status === "ok").length;
   const failed = results.filter((r) => r.status === "failed");
   const reportPath = `codex2zcode-report-${new Date().toISOString().replace(/[:.]/g, "-")}.json`;
-  if (!args.dryRun && (results.length || skipped)) {
+  if (!args.dryRun && (results.length || skippedFiles)) {
     writeFileSync(reportPath, JSON.stringify({ args: { ...args, _: undefined }, results }, null, 2));
   }
-  console.log(`\n完成:成功 ${ok} 个会话 / ${files.length} 个文件${skipped ? `,manifest 跳过 ${skipped}` : ""}${failed.length ? `,失败 ${failed.length}` : ""}${!args.dryRun ? `,报告: ${reportPath}` : ""}`);
+  console.log(`\n完成:成功 ${ok} 个会话 / ${files.length} 个文件${skippedFiles ? `,manifest 跳过 ${skippedFiles}` : ""}${failed.length ? `,失败 ${failed.length}` : ""}${!args.dryRun ? `,报告: ${reportPath}` : ""}`);
   if (failed.length) process.exitCode = 2;
 }
 
