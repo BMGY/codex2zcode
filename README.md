@@ -10,7 +10,7 @@
 
 - **源**:`~/.codex/sessions/` 下的 rollout JSONL(`session_meta` / `response_item` / `event_msg` / `turn_context` / `compacted` 五类记录)
 - **目标**:`~/.zcode/cli/db/db.sqlite`(session/message/part 三表)与 `~/.zcode/v2/tasks-index.sqlite`(Desktop 任务索引)
-- **映射**:user/assistant 消息 → text part,`reasoning` → reasoning part,`function_call`(+`_output`)、`custom_tool_call`、`web_search_call` → tool part,每轮补 step-start/step-finish;`compacted` 按 Codex 语义截断历史并以摘要续接
+- **映射**:user/assistant 消息 → text part,`reasoning` → reasoning part,`function_call`(+`_output`)、`custom_tool_call`、`web_search_call` → tool part,每轮补 step-start/step-finish;`compacted`(Codex 压缩点)不清空历史、摘要不落地——**保留完整原始对话以供追溯**,超长会话由 ZCode 续聊时自动压缩处理
 - **契约对齐**:写入形状与 ZCode 官方 `restore-legacy-sessions` 插件一致(provider 固定 `glm`、正文进 part 表、tool 时间放 `state.time`、user 消息带空 `model:{}`),确保任务列表可见、详情页正常渲染
 
 ## 环境要求
