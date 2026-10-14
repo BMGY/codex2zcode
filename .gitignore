@@ -1,0 +1,7 @@
+# 运行产物
+codex2zcode-report-*.json
+*.bak-*
+
+# 系统与依赖
+.DS_Store
+node_modules/

@@ -1,0 +1,32 @@
+{
+  "name": "codex2zcode",
+  "version": "1.0.0",
+  "description": "Migrate OpenAI Codex CLI/Desktop sessions (rollout JSONL) into ZCode native sessions (CLI session DB + desktop task index).",
+  "type": "module",
+  "bin": {
+    "codex2zcode": "./codex2zcode.mjs"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "keywords": [
+    "codex",
+    "zcode",
+    "migration",
+    "agent-sessions",
+    "sqlite",
+    "cli"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/BMGY/codex2zcode.git"
+  },
+  "author": "Abel Zhang",
+  "license": "MIT",
+  "files": [
+    "codex2zcode.mjs",
+    "lib",
+    "README.md",
+    "LICENSE"
+  ]
+}
