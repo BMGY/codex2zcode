@@ -11,7 +11,7 @@
 - **源**:`~/.codex/sessions/` 下的 rollout JSONL(`session_meta` / `response_item` / `event_msg` / `turn_context` / `compacted` 五类记录)
 - **目标**:`~/.zcode/cli/db/db.sqlite`(session/message/part 三表)与 `~/.zcode/v2/tasks-index.sqlite`(Desktop 任务索引)
 - **映射**:user/assistant 消息 → text part,`reasoning` → reasoning part,`function_call`(+`_output`)、`custom_tool_call`、`web_search_call` → tool part,每轮补 step-start/step-finish
-- **压缩会话:单会话完整时间线**:`compacted` 压缩点不清空历史,原位插入 `[Codex 压缩摘要 N]` 标记消息——压缩前的完整原始对话、每份压缩摘要、之后的对话全部在**同一个会话**里,按原始顺序可追溯;超长会话由 ZCode 续聊时自动压缩
+- **压缩会话:原生压缩语义**(逆向自 ZCode 手动压缩的库内契约):压缩前历史原样保留,每个 Codex 压缩点写成 ZCode 原生三元组——宿主 assistant 时间线消息 + `compact_summary` 摘要消息(正文为 Codex 摘要)+ `compaction` part(`replace:true`/boundaryId/tail_start_id)。效果:**UI 完整时间线可追溯,续聊时读取器只送"最后摘要 + 尾部"**,与原生压缩会话行为一致,无需依赖首次续聊的自动压缩
 - **契约对齐**:写入形状与 ZCode 官方 `restore-legacy-sessions` 插件一致(provider 固定 `glm`、正文进 part 表、tool 时间放 `state.time`、user 消息带空 `model:{}`),确保任务列表可见、详情页正常渲染
 
 ## 环境要求
