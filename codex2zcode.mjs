@@ -148,7 +148,7 @@ function selectFiles(args) {
   throw new Error("需要 --session / --project / --all 之一");
 }
 
-const TOOL_VERSION = "1.8.0";
+const TOOL_VERSION = "1.10.0";
 
 function relOf(file) {
   return file.includes("/.codex/") ? file.split("/.codex/")[1] : file;
@@ -215,7 +215,7 @@ function cmdImport(args) {
         continue;
       }
       const merged = parsedList.length === 1 ? parsedList[0] : mergeRollouts(parsedList);
-      const sessions = mapRolloutFile(merged, { maxToolOutput: args.maxToolOutput, defaultTools, idSuffix: args.sessionSuffix, titleMap });
+      const sessions = mapRolloutFile(merged, { maxToolOutput: args.maxToolOutput, defaultTools, idSuffix: args.sessionSuffix, titleMap, dryRun: args.dryRun });
       for (const mapped of sessions) {
         const summary = {
           files: rels,
