@@ -57,6 +57,8 @@ node codex2zcode.mjs import --all                        # 4. 全量导入
 - **schema 校验**:写入前核对两库表结构,ZCode 升级导致漂移时拒绝写入
 - **运行共存**:WAL + busy_timeout + 短事务 + 忙锁重试,ZCode 运行中导入也安全(仍建议导入后重启)
 - **被 resume 过的会话**:多个 rollout 文件属同一会话 id 时按"末次文件覆盖"(Codex resume 的新文件包含完整历史)
+- **增量导入**:manifest(`~/.codex2zcode-manifest.json`)按 mtime+size+截断档位+工具版本判定,未变的文件直接跳过(全量重扫 ~24s → ~0.1s);`--force` 忽略清单强制重导
+- **session_entry 补写**:迁移会话自动带上模型选择(复用你当前默认模型)与执行状态,每个压缩点补 `v4/command_fact` 时间线契约
 
 ## 已知边界
 
