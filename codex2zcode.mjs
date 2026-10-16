@@ -288,6 +288,11 @@ function cmdImport(args) {
     }
   }
 
+  if (args.remapWorktrees && Object.keys(workspaceRemap).length && cliDb) {
+    const del = taskDb.prepare("DELETE FROM tasks WHERE workspace_key = ?");
+    for (const oldKey of Object.keys(workspaceRemap)) del.run(oldKey);
+  }
+
   if (cliDb) { cliDb.close(); taskDb.close(); }
   if (dirty) writeFileSync(args.manifest, JSON.stringify(manifest, null, 1));
 
