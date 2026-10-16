@@ -55,6 +55,7 @@ function parseArgs(argv) {
     if (item === "--dry-run") { args.dryRun = true; continue; }
     if (item === "--all") { args.all = true; continue; }
     if (item === "--force") { args.force = true; continue; }
+    if (item === "--remap-worktrees") { args.remapWorktrees = true; continue; }
     if (item === "-h" || item === "--help") usage();
     const next = argv[++i];
     if (next === undefined) throw new Error(`缺少参数值: ${item}`);
@@ -148,7 +149,7 @@ function selectFiles(args) {
   throw new Error("需要 --session / --project / --all 之一");
 }
 
-const TOOL_VERSION = "1.11.0";
+const TOOL_VERSION = "1.12.0";
 
 function relOf(file) {
   return file.includes("/.codex/") ? file.split("/.codex/")[1] : file;
@@ -198,6 +199,30 @@ function cmdImport(args) {
   let defaultTools = {};
   const results = [];
 
+  // worktree 折叠配对:worktree cwd → basename 相同且非 worktree 的最高频 cwd
+  let workspaceRemap = {};
+  if (args.remapWorktrees) {
+    const cwdCount = new Map();
+    for (const [, parsedList] of groups) {
+      const c = parsedList[0]?.meta?.cwd;
+      if (c && !c.includes("/.codex/worktrees/")) {
+        cwdCount.set(c, (cwdCount.get(c) || 0) + parsedList.length);
+      }
+    }
+    for (const [, parsedList] of groups) {
+      const c = parsedList[0]?.meta?.cwd;
+      if (!c || !c.includes("/.codex/worktrees/")) continue;
+      const base = c.split("/").pop();
+      const cands = [...cwdCount.entries()].filter(([k]) => k.split("/").pop() === base && k !== c);
+      if (cands.length) {
+        cands.sort((x, y) => y[1] - x[1]);
+        workspaceRemap[c] = cands[0][0];
+      }
+    }
+    const remapped = Object.keys(workspaceRemap).length;
+    if (remapped) console.log(`worktree 折叠: ${remapped} 个工作区映射到主项目`);
+  }
+
   for (const [, parsedList] of groups) {
     const rels = parsedList.map((p) => relOf(p.filePath));
     const rel = rels.length > 1 ? `${rels[0]}(等 ${rels.length} 份文件)` : rels[0];
@@ -215,7 +240,7 @@ function cmdImport(args) {
         continue;
       }
       const merged = parsedList.length === 1 ? parsedList[0] : mergeRollouts(parsedList);
-      const sessions = mapRolloutFile(merged, { maxToolOutput: args.maxToolOutput, defaultTools, idSuffix: args.sessionSuffix, titleMap, dryRun: args.dryRun });
+      const sessions = mapRolloutFile(merged, { maxToolOutput: args.maxToolOutput, defaultTools, idSuffix: args.sessionSuffix, titleMap, dryRun: args.dryRun, workspaceRemap });
       for (const mapped of sessions) {
         const summary = {
           files: rels,
